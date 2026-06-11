@@ -21,6 +21,7 @@ const loadFromStorage = (): Partial<ActivityStore> => {
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
+        activities: parsed.activities,
         selectedDate: parsed.selectedDate,
       };
     }
@@ -33,6 +34,7 @@ const loadFromStorage = (): Partial<ActivityStore> => {
 const saveToStorage = (state: ActivityStore) => {
   try {
     const toSave = {
+      activities: state.activities,
       selectedDate: state.selectedDate,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -44,7 +46,7 @@ const saveToStorage = (state: ActivityStore) => {
 const persisted = loadFromStorage();
 
 export const useActivityStore = create<ActivityStore>((set, get) => ({
-  activities: activities,
+  activities: persisted.activities ?? activities,
   selectedDate: persisted.selectedDate ?? null,
   currentActivity: null,
 
@@ -59,6 +61,7 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
 
   addActivity: (activity: Activity) => {
     set({ activities: [...get().activities, activity] });
+    saveToStorage(get());
   },
 
   updateActivity: (id: string, updates: Partial<Activity>) => {
@@ -66,9 +69,11 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
       a.id === id ? { ...a, ...updates } : a
     );
     set({ activities });
+    saveToStorage(get());
   },
 
   deleteActivity: (id: string) => {
     set({ activities: get().activities.filter((a) => a.id !== id) });
+    saveToStorage(get());
   },
 }));

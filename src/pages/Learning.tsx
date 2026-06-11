@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { BookOpen, CheckCircle, Award, Clock, Play, RotateCcw, Eye } from "lucide-react";
 import { useLearningStore, type TaskProgressStatus } from "@/stores/useLearningStore";
 import { useUserStore, type Certificate as StoreCertificate } from "@/stores/useUserStore";
 import QuizView from "@/components/Learning/QuizView";
 import ResultView from "@/components/Learning/ResultView";
 import CertificateModal from "@/components/Learning/CertificateModal";
+import LoginModal from "@/components/LoginModal";
 import type { LearningTask } from "@/data/learning";
 import { cn } from "@/lib/utils";
 
@@ -21,13 +22,16 @@ export default function Learning() {
     resetTask,
   } = useLearningStore();
 
-  const { user, certificates, addCertificate } = useUserStore();
+  const { user, isLoggedIn, certificates, addCertificate } = useUserStore();
+  const prevIsLoggedIn = useRef(isLoggedIn);
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [score, setScore] = useState(0);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [currentCertificate, setCurrentCertificate] = useState<StoreCertificate | null>(null);
   const [currentCertificateNo, setCurrentCertificateNo] = useState("");
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [pendingCertificateRequest, setPendingCertificateRequest] = useState(false);
 
   const stats = useMemo(() => {
     const completed = Object.values(taskProgress).filter(
@@ -47,6 +51,34 @@ export default function Learning() {
       return userAnswers[key] !== undefined;
     }).length;
   };
+
+  const handleGetCertificate = useCallback(() => {
+    if (!currentTask) return;
+
+    if (!isLoggedIn) {
+      setPendingCertificateRequest(true);
+      setShowLoginModal(true);
+      return;
+    }
+
+    addCertificate(currentTask.id, currentTask.title, score);
+    setTimeout(() => {
+      const cert = useUserStore.getState().certificates.find((c) => c.taskId === currentTask.id);
+      if (cert) {
+        setCurrentCertificate(cert);
+        setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+        setShowCertificateModal(true);
+      }
+    }, 50);
+  }, [currentTask, isLoggedIn, score, addCertificate]);
+
+  useEffect(() => {
+    if (isLoggedIn && !prevIsLoggedIn.current && pendingCertificateRequest) {
+      setPendingCertificateRequest(false);
+      handleGetCertificate();
+    }
+    prevIsLoggedIn.current = isLoggedIn;
+  }, [isLoggedIn, pendingCertificateRequest, handleGetCertificate]);
 
   const handleStartTask = (task: LearningTask) => {
     setCurrentTask(task);
@@ -75,20 +107,13 @@ export default function Learning() {
     setViewMode("list");
   };
 
-  const handleGetCertificate = () => {
-    if (!currentTask) return;
-    addCertificate(currentTask.id, currentTask.title, score);
-    setTimeout(() => {
-      const cert = useUserStore.getState().certificates.find((c) => c.taskId === currentTask.id);
-      if (cert) {
-        setCurrentCertificate(cert);
-        setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
-        setShowCertificateModal(true);
-      }
-    }, 50);
-  };
-
   const handleViewCertificate = (taskId: string) => {
+    if (!isLoggedIn) {
+      setPendingCertificateRequest(false);
+      setShowLoginModal(true);
+      return;
+    }
+
     const cert = useUserStore.getState().certificates.find((c) => c.taskId === taskId);
     if (cert) {
       setCurrentCertificate(cert);
@@ -191,6 +216,7 @@ export default function Learning() {
       <>
         <ResultView
           score={score}
+          isLoggedIn={isLoggedIn}
           onGetCertificate={handleGetCertificate}
           onRetry={() => currentTask && handleRetryTask(currentTask)}
           onBack={handleBackToList}
@@ -312,6 +338,26 @@ export default function Learning() {
         certificate={currentCertificate}
         user={user}
         certificateNo={currentCertificateNo}
+      />
+
+      <LoginModal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={() => {
+          setShowLoginModal(false);
+          if (pendingCertificateRequest && currentTask) {
+            addCertificate(currentTask.id, currentTask.title, score);
+            setTimeout(() => {
+              const cert = useUserStore.getState().certificates.find((c) => c.taskId === currentTask.id);
+              if (cert) {
+                setCurrentCertificate(cert);
+                setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+                setShowCertificateModal(true);
+                setPendingCertificateRequest(false);
+              }
+            }, 50);
+          }
+        }}
       />
     </div>
   );

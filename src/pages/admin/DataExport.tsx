@@ -104,7 +104,7 @@ export default function DataExport() {
       case 'users': {
         filename = `用户数据_${fileTimestamp()}.json`;
         type = '用户数据';
-        const data = defaultUsers.map(({ password: _password, ...rest }) => rest);
+        const data = defaultUsers.map(({ password: _p, ...rest }) => rest);
         const fn = () => exportToJSON(data, filename);
         fn();
         recordExportFn = fn;

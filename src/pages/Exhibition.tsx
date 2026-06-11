@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { X, Landmark } from 'lucide-react';
 import { useCollectionStore } from '@/stores/useCollectionStore';
@@ -32,17 +32,27 @@ export default function Exhibition() {
     setDynasty,
   } = useCollectionStore();
 
+  const prevExhibitionId = useRef<string | null>(null);
+
   useEffect(() => {
-    if (exhibitionId && EXHIBITION_FILTER_MAP[exhibitionId]) {
-      const filter = EXHIBITION_FILTER_MAP[exhibitionId];
-      if (filter.category) {
-        setCategory(filter.category);
+    if (exhibitionId !== prevExhibitionId.current) {
+      setSearchKeyword('');
+      setCategory(null);
+      setDynasty(null);
+
+      if (exhibitionId && EXHIBITION_FILTER_MAP[exhibitionId]) {
+        const filter = EXHIBITION_FILTER_MAP[exhibitionId];
+        if (filter.category) {
+          setCategory(filter.category);
+        }
+        if (filter.dynasty) {
+          setDynasty(filter.dynasty);
+        }
       }
-      if (filter.dynasty) {
-        setDynasty(filter.dynasty);
-      }
+
+      prevExhibitionId.current = exhibitionId;
     }
-  }, [exhibitionId, setCategory, setDynasty]);
+  }, [exhibitionId, setSearchKeyword, setCategory, setDynasty]);
 
   const activeExhibition = useMemo(() => {
     if (!exhibitionId) return null;

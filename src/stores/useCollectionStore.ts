@@ -11,6 +11,8 @@ export interface Comment {
   content: string;
   date: string;
   rating: number;
+  type: 'comment' | 'question';
+  reviewStatus: 'pending' | 'approved' | 'rejected';
 }
 
 interface CollectionStore {
@@ -26,7 +28,8 @@ interface CollectionStore {
   setCategory: (category: Category | null) => void;
   setDynasty: (dynasty: Dynasty | null) => void;
   setCurrentItem: (item: Collection | null) => void;
-  addComment: (collectionId: string, userId: string, username: string, content: string, rating: number) => void;
+  addComment: (collectionId: string, userId: string, username: string, content: string, rating: number, type?: 'comment' | 'question', reviewStatus?: 'pending' | 'approved' | 'rejected') => void;
+  updateCommentReviewStatus: (commentId: string, status: 'pending' | 'approved' | 'rejected') => void;
   incrementViewCount: (collectionId: string) => void;
   addItem: (item: Collection) => void;
   updateItem: (id: string, updates: Partial<Collection>) => void;
@@ -40,11 +43,16 @@ const loadFromStorage = (): Partial<CollectionStore> => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
+      const migratedComments = (parsed.comments || []).map((c: Comment) => ({
+        ...c,
+        type: c.type || 'comment',
+        reviewStatus: c.reviewStatus || 'pending',
+      }));
       return {
         searchKeyword: parsed.searchKeyword,
         selectedCategory: parsed.selectedCategory,
         selectedDynasty: parsed.selectedDynasty,
-        comments: parsed.comments,
+        comments: migratedComments,
         items: parsed.items,
       };
     }
@@ -99,7 +107,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
     set({ currentItem: item });
   },
 
-  addComment: (collectionId: string, userId: string, username: string, content: string, rating: number) => {
+  addComment: (collectionId: string, userId: string, username: string, content: string, rating: number, type: 'comment' | 'question' = 'comment', reviewStatus: 'pending' | 'approved' | 'rejected' = 'pending') => {
     const comment: Comment = {
       id: `comment_${Date.now()}`,
       collectionId,
@@ -108,8 +116,18 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       content,
       date: new Date().toISOString().split('T')[0],
       rating,
+      type,
+      reviewStatus,
     };
     set({ comments: [...get().comments, comment] });
+    saveToStorage(get());
+  },
+
+  updateCommentReviewStatus: (commentId: string, status: 'pending' | 'approved' | 'rejected') => {
+    const comments = get().comments.map((c) =>
+      c.id === commentId ? { ...c, reviewStatus: status } : c
+    );
+    set({ comments });
     saveToStorage(get());
   },
 

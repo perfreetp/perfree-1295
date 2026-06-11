@@ -32,6 +32,7 @@ interface CommentItem {
   createdAt: string;
   likes: number;
   liked: boolean;
+  reviewStatus: "pending" | "approved" | "rejected";
 }
 
 const mockComments: CommentItem[] = [
@@ -45,6 +46,7 @@ const mockComments: CommentItem[] = [
     createdAt: "2025-05-15 14:30",
     likes: 28,
     liked: false,
+    reviewStatus: "approved",
   },
   {
     id: "cmt002",
@@ -56,6 +58,7 @@ const mockComments: CommentItem[] = [
     createdAt: "2025-05-14 09:15",
     likes: 12,
     liked: false,
+    reviewStatus: "approved",
   },
   {
     id: "cmt003",
@@ -67,6 +70,7 @@ const mockComments: CommentItem[] = [
     createdAt: "2025-05-13 16:45",
     likes: 56,
     liked: false,
+    reviewStatus: "approved",
   },
   {
     id: "cmt004",
@@ -78,6 +82,7 @@ const mockComments: CommentItem[] = [
     createdAt: "2025-05-12 11:20",
     likes: 34,
     liked: false,
+    reviewStatus: "approved",
   },
   {
     id: "cmt005",
@@ -89,13 +94,16 @@ const mockComments: CommentItem[] = [
     createdAt: "2025-05-11 20:10",
     likes: 18,
     liked: false,
+    reviewStatus: "approved",
   },
 ];
 
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const items = useCollectionStore((s) => s.items);
+  const storeComments = useCollectionStore((s) => s.comments);
   const incrementViewCount = useCollectionStore((s) => s.incrementViewCount);
+  const addComment = useCollectionStore((s) => s.addComment);
   const toggleFavorite = useUserStore((s) => s.toggleFavorite);
   const favorites = useUserStore((s) => s.favorites);
   const addBrowseHistory = useUserStore((s) => s.addBrowseHistory);
@@ -109,9 +117,34 @@ export default function CollectionDetail() {
   const [isVirtualTourOpen, setIsVirtualTourOpen] = useState(false);
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [activeTab, setActiveTab] = useState<"comment" | "question">("comment");
-  const [comments, setComments] = useState<CommentItem[]>(mockComments);
   const [inputValue, setInputValue] = useState("");
   const [viewed, setViewed] = useState(false);
+
+  const userAvatarMap: Record<string, string> = {
+    "u001": defaultUsers[0].avatar,
+    "u002": defaultUsers[1].avatar,
+    "u003": defaultUsers[2].avatar,
+  };
+
+  const mergedComments: CommentItem[] = [
+    ...storeComments
+      .filter((c) => c.collectionId === collection.id)
+      .map((c) => ({
+        id: c.id,
+        userId: c.userId,
+        userName: c.username,
+        userAvatar: userAvatarMap[c.userId] || defaultUsers[1].avatar,
+        content: c.content,
+        type: c.type,
+        createdAt: c.date,
+        likes: 0,
+        liked: false,
+        reviewStatus: c.reviewStatus,
+      })),
+    ...mockComments,
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const [localComments, setLocalComments] = useState<CommentItem[]>(mergedComments);
 
   const isFavorite = favorites.includes(collection.id);
 
@@ -122,6 +155,10 @@ export default function CollectionDetail() {
       setViewed(true);
     }
   }, [collection, viewed, incrementViewCount, addBrowseHistory]);
+
+  useEffect(() => {
+    setLocalComments(mergedComments);
+  }, [mergedComments]);
 
   const nextImage = () => {
     setCurrentImage((prev) => (prev + 1) % collection.images.length);
@@ -173,7 +210,7 @@ export default function CollectionDetail() {
   };
 
   const handleLike = (commentId: string) => {
-    setComments((prev) =>
+    setLocalComments((prev) =>
       prev.map((c) =>
         c.id === commentId
           ? {
@@ -188,12 +225,13 @@ export default function CollectionDetail() {
 
   const handleSubmit = () => {
     if (!inputValue.trim()) return;
+    const content = inputValue.trim();
     const newComment: CommentItem = {
       id: `cmt_${Date.now()}`,
       userId: defaultUsers[1].id,
       userName: defaultUsers[1].nickname,
       userAvatar: defaultUsers[1].avatar,
-      content: inputValue.trim(),
+      content,
       type: activeTab,
       createdAt: new Date().toLocaleString("zh-CN", {
         year: "numeric",
@@ -204,12 +242,14 @@ export default function CollectionDetail() {
       }),
       likes: 0,
       liked: false,
+      reviewStatus: "pending",
     };
-    setComments((prev) => [newComment, ...prev]);
+    addComment(collection.id, defaultUsers[1].id, defaultUsers[1].nickname, content, 0, activeTab, "pending");
+    setLocalComments((prev) => [newComment, ...prev]);
     setInputValue("");
   };
 
-  const filteredComments = comments.filter((c) => c.type === activeTab);
+  const filteredComments = localComments.filter((c) => c.type === activeTab);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -401,7 +441,7 @@ export default function CollectionDetail() {
             >
               <div className="flex items-center justify-center gap-2">
                 <MessageCircle size={18} />
-                <span>评论 ({comments.filter((c) => c.type === "comment").length})</span>
+                <span>评论 ({localComments.filter((c) => c.type === "comment").length})</span>
               </div>
               {activeTab === "comment" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
@@ -417,7 +457,7 @@ export default function CollectionDetail() {
             >
               <div className="flex items-center justify-center gap-2">
                 <MessageCircle size={18} />
-                <span>提问 ({comments.filter((c) => c.type === "question").length})</span>
+                <span>提问 ({localComments.filter((c) => c.type === "question").length})</span>
               </div>
               {activeTab === "question" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
@@ -483,12 +523,28 @@ export default function CollectionDetail() {
                             提问
                           </span>
                         )}
+                        {comment.reviewStatus === "pending" && (
+                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full">
+                            审核中
+                          </span>
+                        )}
+                        {comment.reviewStatus === "rejected" && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">
+                            已驳回
+                          </span>
+                        )}
                       </div>
                       <span className="text-sm text-gray-400">{comment.createdAt}</span>
                     </div>
-                    <p className="text-gray-700 leading-relaxed mb-3">
-                      {comment.content}
-                    </p>
+                    {comment.reviewStatus === "rejected" ? (
+                      <p className="text-gray-400 italic leading-relaxed mb-3">
+                        该评论已被驳回
+                      </p>
+                    ) : (
+                      <p className={`leading-relaxed mb-3 ${comment.reviewStatus === "pending" ? "text-gray-600" : "text-gray-700"}`}>
+                        {comment.content}
+                      </p>
+                    )}
                     <div className="flex items-center">
                       <button
                         onClick={() => handleLike(comment.id)}

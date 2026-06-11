@@ -8,9 +8,11 @@ interface ResultViewProps {
   onGetCertificate: () => void;
   onRetry: () => void;
   onBack: () => void;
+  isLoggedIn?: boolean;
+  onNeedLogin?: () => void;
 }
 
-export default function ResultView({ score, onGetCertificate, onRetry, onBack }: ResultViewProps) {
+export default function ResultView({ score, onGetCertificate, onRetry, onBack, isLoggedIn, onNeedLogin }: ResultViewProps) {
   const { currentTask } = useLearningStore();
   const [animatedScore, setAnimatedScore] = useState(0);
 
@@ -152,11 +154,17 @@ export default function ResultView({ score, onGetCertificate, onRetry, onBack }:
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {passed ? (
                 <button
-                  onClick={onGetCertificate}
+                  onClick={() => {
+                    if (isLoggedIn === false && onNeedLogin) {
+                      onNeedLogin();
+                    } else {
+                      onGetCertificate();
+                    }
+                  }}
                   className="flex items-center justify-center gap-2 px-8 py-3 bg-gradient-gold text-white rounded-xl font-medium hover:shadow-lg hover:shadow-gold/30 transition-all duration-300"
                 >
                   <Award size={20} />
-                  <span>获取证书</span>
+                  <span>{isLoggedIn === false ? "登录后获取证书" : "获取证书"}</span>
                 </button>
               ) : (
                 <button

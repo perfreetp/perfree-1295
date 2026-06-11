@@ -21,23 +21,23 @@ const statusBadge: Record<ReviewStatus, { label: string; className: string }> = 
 export default function MessageReview() {
   const comments = useCollectionStore((s) => s.comments);
   const items = useCollectionStore((s) => s.items);
+  const updateCommentReviewStatus = useCollectionStore((s) => s.updateCommentReviewStatus);
 
-  const [reviewStatus, setReviewStatus] = useState<Record<string, ReviewStatus>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
 
-  const getStatus = (id: string): ReviewStatus => reviewStatus[id] ?? 'pending';
+  const getStatus = (comment: typeof comments[0]): ReviewStatus => comment.reviewStatus ?? 'pending';
 
   const handleApprove = (id: string) => {
-    setReviewStatus((prev) => ({ ...prev, [id]: 'approved' }));
+    updateCommentReviewStatus(id, 'approved');
   };
 
   const handleReject = (id: string) => {
-    setReviewStatus((prev) => ({ ...prev, [id]: 'rejected' }));
+    updateCommentReviewStatus(id, 'rejected');
   };
 
   const filtered = comments.filter((c) => {
-    if (filterStatus !== 'all' && getStatus(c.id) !== filterStatus) return false;
+    if (filterStatus !== 'all' && getStatus(c) !== filterStatus) return false;
     if (searchKeyword) {
       const kw = searchKeyword.toLowerCase();
       return (
@@ -93,7 +93,7 @@ export default function MessageReview() {
         ) : (
           <div className="divide-y divide-gray-100">
             {filtered.map((comment) => {
-              const status = getStatus(comment.id);
+              const status = getStatus(comment);
               const badge = statusBadge[status];
               return (
                 <div key={comment.id} className="p-6 hover:bg-gray-50 transition-colors">

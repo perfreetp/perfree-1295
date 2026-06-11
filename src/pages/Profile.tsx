@@ -8,7 +8,6 @@ import {
   BookOpen,
   LogOut,
   History,
-  X,
   Bell,
   BellOff,
   Download,
@@ -21,10 +20,12 @@ import {
   ChevronRight,
   LogIn,
 } from 'lucide-react';
+import LoginModal from '@/components/LoginModal';
 import { useUserStore, type Certificate as StoreCertificate } from '@/stores/useUserStore';
 import { useLearningStore } from '@/stores/useLearningStore';
+import { useActivityStore } from '@/stores/useActivityStore';
 import { collections, type Collection } from '@/data/collections';
-import { activities, type Activity } from '@/data/activities';
+import type { Activity } from '@/types';
 import { defaultUsers, type User as UserType } from '@/data/users';
 import StatsChart from '@/components/Profile/StatsChart';
 import { cn } from '@/lib/utils';
@@ -242,6 +243,7 @@ function FavoritesTab() {
 function RegistrationsTab() {
   const registrations = useUserStore((s) => s.registrations);
   const toggleRemind = useUserStore((s) => s.toggleRemind);
+  const activities = useActivityStore((s) => s.activities);
 
   if (registrations.length === 0) {
     return (
@@ -250,7 +252,7 @@ function RegistrationsTab() {
         <h3 className="text-xl font-serif font-bold text-ink mb-2">暂无预约</h3>
         <p className="text-gray-500 mb-6">快去报名感兴趣的活动吧</p>
         <Link
-          to="/activity"
+          to="/calendar"
           className="inline-flex items-center gap-2 px-6 py-2.5 bg-gold text-ink rounded-lg hover:bg-gold/90 transition-colors font-medium"
         >
           <ChevronRight size={18} />
@@ -772,53 +774,6 @@ function HistoryTab() {
   );
 }
 
-function LoginModal({ onClose }: { onClose: () => void }) {
-  const login = useUserStore((s) => s.login);
-
-  const handleQuickLogin = (user: UserType) => {
-    login(user);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-ink/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative animate-scale-in">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
-        >
-          <X size={20} />
-        </button>
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gold/10 flex items-center justify-center">
-            <LogIn size={32} className="text-gold" />
-          </div>
-          <h2 className="text-2xl font-serif font-bold text-ink mb-1">欢迎登录</h2>
-          <p className="text-gray-500 text-sm">选择账号一键登录</p>
-        </div>
-        <div className="space-y-3">
-          {defaultUsers.map((u) => (
-            <button
-              key={u.id}
-              onClick={() => handleQuickLogin(u)}
-              className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gold hover:bg-gold/5 transition-all text-left"
-            >
-              <img src={u.avatar} alt={u.nickname} className="w-12 h-12 rounded-full object-cover" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-ink">{u.nickname}</p>
-                <p className="text-xs text-gray-500">
-                  {u.role === 'admin' ? '管理员账号' : '普通用户账号'}
-                </p>
-              </div>
-              <ChevronRight size={18} className="text-gray-300" />
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -921,7 +876,7 @@ export default function Profile() {
 
       {renderTabContent()}
 
-      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      <LoginModal open={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </div>
   );
 }
