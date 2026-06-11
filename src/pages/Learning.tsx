@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { BookOpen, CheckCircle, Award, Clock, Play, RotateCcw, Eye } from "lucide-react";
 import { useLearningStore, type TaskProgressStatus } from "@/stores/useLearningStore";
 import { useUserStore, type Certificate as StoreCertificate } from "@/stores/useUserStore";
-import { generateCertificateNo } from "@/utils/certificate";
 import QuizView from "@/components/Learning/QuizView";
 import ResultView from "@/components/Learning/ResultView";
 import CertificateModal from "@/components/Learning/CertificateModal";
@@ -79,18 +78,21 @@ export default function Learning() {
   const handleGetCertificate = () => {
     if (!currentTask) return;
     addCertificate(currentTask.id, currentTask.title, score);
-    const certNo = generateCertificateNo();
-    setCurrentCertificateNo(certNo);
-    const cert = certificates.find((c) => c.taskId === currentTask.id) || null;
-    setCurrentCertificate(cert);
-    setShowCertificateModal(true);
+    setTimeout(() => {
+      const cert = useUserStore.getState().certificates.find((c) => c.taskId === currentTask.id);
+      if (cert) {
+        setCurrentCertificate(cert);
+        setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+        setShowCertificateModal(true);
+      }
+    }, 50);
   };
 
   const handleViewCertificate = (taskId: string) => {
-    const cert = certificates.find((c) => c.taskId === taskId) || null;
+    const cert = useUserStore.getState().certificates.find((c) => c.taskId === taskId);
     if (cert) {
       setCurrentCertificate(cert);
-      setCurrentCertificateNo(generateCertificateNo());
+      setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
       setShowCertificateModal(true);
     }
   };

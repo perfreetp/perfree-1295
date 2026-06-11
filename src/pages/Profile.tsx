@@ -21,13 +21,14 @@ import {
   ChevronRight,
   LogIn,
 } from 'lucide-react';
-import { useUserStore } from '@/stores/useUserStore';
+import { useUserStore, type Certificate as StoreCertificate } from '@/stores/useUserStore';
 import { useLearningStore } from '@/stores/useLearningStore';
 import { collections, type Collection } from '@/data/collections';
 import { activities, type Activity } from '@/data/activities';
 import { defaultUsers, type User as UserType } from '@/data/users';
 import StatsChart from '@/components/Profile/StatsChart';
 import { cn } from '@/lib/utils';
+import CertificateModal from '@/components/Learning/CertificateModal';
 
 type TabKey = 'overview' | 'favorites' | 'registrations' | 'learning' | 'certificates' | 'history';
 
@@ -431,6 +432,203 @@ function LearningTab() {
 
 function CertificatesTab() {
   const certificates = useUserStore((s) => s.certificates);
+  const user = useUserStore((s) => s.user);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [currentCertificate, setCurrentCertificate] = useState<StoreCertificate | null>(null);
+  const [currentCertificateNo, setCurrentCertificateNo] = useState('');
+
+  const handlePreview = (cert: StoreCertificate) => {
+    setCurrentCertificate(cert);
+    setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+    setShowCertificateModal(true);
+  };
+
+  const handleDownload = (cert: StoreCertificate) => {
+    const currentUser = user;
+    if (!currentUser) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = 800 * dpr;
+    canvas.height = 600 * dpr;
+    canvas.style.width = '800px';
+    canvas.style.height = '600px';
+    ctx.scale(dpr, dpr);
+
+    const certNo = `MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`;
+
+    const drawCornerDecoration = (
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      dirX: number = 1,
+      dirY: number = 1
+    ) => {
+      ctx.strokeStyle = '#c9a227';
+      ctx.lineWidth = 2;
+      const len = 30;
+      ctx.beginPath();
+      ctx.moveTo(x, y + dirY * len);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + dirX * len, y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + dirX * 8, y + dirY * len);
+      ctx.lineTo(x + dirX * 8, y + dirY * 8);
+      ctx.lineTo(x + dirX * len, y + dirY * 8);
+      ctx.stroke();
+    };
+
+    const drawStar = (
+      ctx: CanvasRenderingContext2D,
+      cx: number,
+      cy: number,
+      spikes: number,
+      outerRadius: number,
+      innerRadius: number
+    ) => {
+      let rot = (Math.PI / 2) * 3;
+      let x = cx;
+      let y = cy;
+      const step = Math.PI / spikes;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - outerRadius);
+      for (let i = 0; i < spikes; i++) {
+        x = cx + Math.cos(rot) * outerRadius;
+        y = cy + Math.sin(rot) * outerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+
+        x = cx + Math.cos(rot) * innerRadius;
+        y = cy + Math.sin(rot) * innerRadius;
+        ctx.lineTo(x, y);
+        rot += step;
+      }
+      ctx.lineTo(cx, cy - outerRadius);
+      ctx.closePath();
+      ctx.fillStyle = '#b91c1c';
+      ctx.fill();
+    };
+
+    const drawSeal = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+      const radius = 45;
+      ctx.save();
+      ctx.translate(x, y);
+
+      ctx.strokeStyle = '#b91c1c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#b91c1c';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#b91c1c';
+      ctx.font = "bold 14px 'Noto Serif SC', serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const text = '博物馆';
+      for (let i = 0; i < text.length; i++) {
+        const angle = -Math.PI / 2 + (i - (text.length - 1) / 2) * 0.4;
+        const charX = Math.cos(angle) * (radius - 15);
+        const charY = Math.sin(angle) * (radius - 15);
+        ctx.save();
+        ctx.translate(charX, charY);
+        ctx.rotate(angle + Math.PI / 2);
+        ctx.fillText(text[i], 0, 0);
+        ctx.restore();
+      }
+
+      ctx.fillStyle = '#b91c1c';
+      ctx.font = "bold 16px 'Noto Serif SC', serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('之印', 0, 10);
+
+      const starAngle = -Math.PI / 2;
+      const starX = Math.cos(starAngle) * 10;
+      const starY = Math.sin(starAngle) * 10 - 5;
+      drawStar(ctx, starX, starY, 5, 5, 2);
+
+      ctx.restore();
+    };
+
+    ctx.fillStyle = '#f5f0e6';
+    ctx.fillRect(0, 0, 800, 600);
+
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(30, 30, 740, 540);
+
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(50, 50, 700, 500);
+
+    drawCornerDecoration(ctx, 50, 50, 1);
+    drawCornerDecoration(ctx, 750, 50, -1, 1);
+    drawCornerDecoration(ctx, 50, 550, 1, -1);
+    drawCornerDecoration(ctx, 750, 550, -1, -1);
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.font = "bold 48px 'Noto Serif SC', serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('结业证书', 400, 130);
+
+    ctx.fillStyle = '#c9a227';
+    ctx.font = "20px 'Noto Serif SC', serif";
+    ctx.fillText('MUSEUM ONLINE LEARNING', 400, 165);
+
+    ctx.fillStyle = '#c9a227';
+    ctx.beginPath();
+    ctx.moveTo(300, 185);
+    ctx.lineTo(500, 185);
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.font = "26px 'Noto Sans SC', sans-serif";
+    ctx.fillText('兹证明', 400, 250);
+
+    const userName = currentUser.nickname || '学习者';
+    ctx.fillStyle = '#2d5a5b';
+    ctx.font = "bold 38px 'Noto Serif SC', serif";
+    ctx.fillText(userName, 400, 315);
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.font = "22px 'Noto Sans SC', sans-serif";
+    ctx.fillText(`已完成《${cert.taskTitle}》学习任务，`, 400, 375);
+    ctx.fillText(`考核成绩 ${cert.score} 分，成绩合格，特发此证。`, 400, 408);
+
+    drawSeal(ctx, 650, 480);
+
+    ctx.fillStyle = '#666';
+    ctx.font = "18px 'Noto Sans SC', sans-serif";
+    ctx.fillText(`证书编号：${certNo}`, 400, 480);
+    ctx.fillText(`颁发日期：${cert.issueDate}`, 400, 510);
+
+    ctx.fillStyle = '#c9a227';
+    ctx.font = "16px 'Noto Sans SC', sans-serif";
+    ctx.fillText('— 博物馆在线学习平台 —', 400, 560);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `证书-${cert.taskTitle}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (certificates.length === 0) {
     return (
@@ -449,59 +647,61 @@ function CertificatesTab() {
     );
   }
 
-  const handlePreview = (certId: string) => {
-    alert(`预览证书: ${certId}`);
-  };
-
-  const handleDownload = (certId: string) => {
-    alert(`下载证书: ${certId}`);
-  };
-
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
-      {certificates.map((cert) => (
-        <div
-          key={cert.id}
-          className="group relative bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
-        >
-          <div className="relative p-1 bg-gradient-to-br from-gold via-yellow-400 to-gold">
-            <div className="bg-gradient-to-br from-cream to-white rounded-lg p-6 text-center">
-              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gold/10 flex items-center justify-center">
-                <Award size={32} className="text-gold" />
-              </div>
-              <h4 className="font-serif font-bold text-ink text-lg mb-2">{cert.taskTitle}</h4>
-              <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent my-3" />
-              <p className="text-xs text-gray-500 mb-1">证书编号</p>
-              <p className="font-mono text-sm text-ink mb-3">{cert.id.toUpperCase()}</p>
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                <Calendar size={12} />
-                颁发日期: {cert.issueDate}
-              </div>
-              <div className="mt-3 flex items-center justify-center gap-1">
-                <Trophy size={14} className="text-gold" />
-                <span className="text-gold font-bold text-lg">{cert.score}分</span>
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
+        {certificates.map((cert) => (
+          <div
+            key={cert.id}
+            className="group relative bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
+          >
+            <div className="relative p-1 bg-gradient-to-br from-gold via-yellow-400 to-gold">
+              <div className="bg-gradient-to-br from-cream to-white rounded-lg p-6 text-center">
+                <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gold/10 flex items-center justify-center">
+                  <Award size={32} className="text-gold" />
+                </div>
+                <h4 className="font-serif font-bold text-ink text-lg mb-2">{cert.taskTitle}</h4>
+                <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent my-3" />
+                <p className="text-xs text-gray-500 mb-1">证书编号</p>
+                <p className="font-mono text-sm text-ink mb-3">{cert.id.toUpperCase()}</p>
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                  <Calendar size={12} />
+                  颁发日期: {cert.issueDate}
+                </div>
+                <div className="mt-3 flex items-center justify-center gap-1">
+                  <Trophy size={14} className="text-gold" />
+                  <span className="text-gold font-bold text-lg">{cert.score}分</span>
+                </div>
               </div>
             </div>
+            <div className="flex border-t border-gray-100">
+              <button
+                onClick={() => handlePreview(cert)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors border-r border-gray-100"
+              >
+                <Eye size={16} />
+                预览
+              </button>
+              <button
+                onClick={() => handleDownload(cert)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm text-gold hover:bg-gold/5 transition-colors font-medium"
+              >
+                <Download size={16} />
+                下载
+              </button>
+            </div>
           </div>
-          <div className="flex border-t border-gray-100">
-            <button
-              onClick={() => handlePreview(cert.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors border-r border-gray-100"
-            >
-              <Eye size={16} />
-              预览
-            </button>
-            <button
-              onClick={() => handleDownload(cert.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm text-gold hover:bg-gold/5 transition-colors font-medium"
-            >
-              <Download size={16} />
-              下载
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      <CertificateModal
+        open={showCertificateModal}
+        onClose={() => setShowCertificateModal(false)}
+        certificate={currentCertificate}
+        user={user}
+        certificateNo={currentCertificateNo}
+      />
+    </>
   );
 }
 

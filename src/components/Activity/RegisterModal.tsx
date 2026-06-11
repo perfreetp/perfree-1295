@@ -25,7 +25,7 @@ interface FormErrors {
 }
 
 export default function RegisterModal({ activity, isOpen, onClose }: RegisterModalProps) {
-  const { addRegistration, registrations, toggleRemind } = useUserStore();
+  const { addRegistration, toggleRemind } = useUserStore();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     phone: '',
@@ -65,7 +65,8 @@ export default function RegisterModal({ activity, isOpen, onClose }: RegisterMod
     addRegistration(activity.id, activity.title);
 
     if (enableRemind) {
-      const reg = registrations.find((r) => r.activityId === activity.id);
+      const latestRegistrations = useUserStore.getState().registrations;
+      const reg = latestRegistrations.find((r) => r.activityId === activity.id);
       if (reg && !reg.reminded) {
         toggleRemind(reg.id);
       }
@@ -126,13 +127,14 @@ export default function RegisterModal({ activity, isOpen, onClose }: RegisterMod
               </div>
               <button
                 onClick={() => {
-                  setEnableRemind(!enableRemind);
-                  const reg = registrations.find((r) => r.activityId === activity.id);
+                  const latestRegistrations = useUserStore.getState().registrations;
+                  const reg = latestRegistrations.find((r) => r.activityId === activity.id);
                   if (reg) {
-                    if ((enableRemind && reg.reminded) || (!enableRemind && !reg.reminded)) {
+                    if ((enableRemind && !reg.reminded) || (!enableRemind && reg.reminded)) {
                       toggleRemind(reg.id);
                     }
                   }
+                  setEnableRemind(!enableRemind);
                 }}
                 className={cn(
                   'relative inline-flex h-7 w-12 items-center rounded-full transition-colors',

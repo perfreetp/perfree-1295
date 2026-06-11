@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Landmark,
   Calendar,
@@ -43,10 +43,10 @@ const heroSlides = [
 ];
 
 const quickNavItems = [
-  { icon: Landmark, label: '云展厅', desc: '在线观展', path: '/other' },
-  { icon: Calendar, label: '活动日历', desc: '精彩活动', path: '/other' },
-  { icon: BookOpen, label: '学习任务', desc: '知识探索', path: '/other' },
-  { icon: User, label: '个人中心', desc: '我的收藏', path: '/other' },
+  { icon: Landmark, label: '云展厅', desc: '在线观展', path: '/exhibition' },
+  { icon: Calendar, label: '活动日历', desc: '精彩活动', path: '/calendar' },
+  { icon: BookOpen, label: '学习任务', desc: '知识探索', path: '/learning' },
+  { icon: User, label: '个人中心', desc: '我的收藏', path: '/profile' },
 ];
 
 function formatViewCount(count: number): string {
@@ -65,6 +65,7 @@ function formatDate(dateStr: string): { month: string; day: string } {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const { items, exhibitions } = useCollectionStore();
   const { activities } = useActivityStore();
@@ -125,7 +126,7 @@ export default function Home() {
               {heroSlides[currentSlide].subtitle}
             </p>
             <Link
-              to="/other"
+              to="/exhibition"
               className="group relative inline-flex items-center gap-2 px-8 md:px-12 py-3 md:py-4 bg-gradient-gold text-ink font-bold text-lg md:text-xl rounded-lg shadow-lg shadow-gold/30 hover:shadow-xl hover:shadow-gold/50 hover:scale-105 transition-all duration-300 overflow-hidden"
             >
               <Sparkles className="w-5 h-5" />
@@ -202,7 +203,7 @@ export default function Home() {
               <p className="text-cream/60">探索精彩特展，领略文化魅力</p>
             </div>
             <Link
-              to="/other"
+              to="/exhibition"
               className="hidden md:inline-flex items-center gap-1 text-gold hover:text-gold/80 transition-colors font-medium"
             >
               查看全部 <ChevronRight className="w-4 h-4" />
@@ -213,7 +214,7 @@ export default function Home() {
             {exhibitions.map((exhibition) => (
               <Link
                 key={exhibition.id}
-                to={`/exhibition/${exhibition.id}`}
+                to={`/exhibition?exhibition=${exhibition.id}`}
                 className="group flex-shrink-0 w-64 md:w-80 bg-cream/5 rounded-2xl overflow-hidden border border-gold/20 hover:border-gold/50 transition-all duration-300 hover:scale-[1.02]"
               >
                 <div className="relative w-full h-44 md:h-52 overflow-hidden">
@@ -251,7 +252,7 @@ export default function Home() {
               <p className="text-ink/60">镇馆之宝，传世珍品</p>
             </div>
             <Link
-              to="/other"
+              to="/exhibition"
               className="hidden md:inline-flex items-center gap-1 text-gold hover:text-gold/80 transition-colors font-medium"
             >
               查看全部 <ChevronRight className="w-4 h-4" />
@@ -360,6 +361,7 @@ export default function Home() {
                           已报名 {activity.registeredCount}/{activity.capacity}
                         </div>
                         <button
+                          onClick={() => navigate('/calendar')}
                           className="px-4 md:px-6 py-2 bg-gradient-gold text-ink font-bold text-sm md:text-base rounded-lg shadow-md hover:shadow-lg hover:shadow-gold/40 hover:scale-105 transition-all duration-300"
                         >
                           立即报名

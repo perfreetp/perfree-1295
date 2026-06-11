@@ -28,6 +28,9 @@ interface CollectionStore {
   setCurrentItem: (item: Collection | null) => void;
   addComment: (collectionId: string, userId: string, username: string, content: string, rating: number) => void;
   incrementViewCount: (collectionId: string) => void;
+  addItem: (item: Collection) => void;
+  updateItem: (id: string, updates: Partial<Collection>) => void;
+  deleteItem: (id: string) => void;
 }
 
 const STORAGE_KEY = 'museum_collection_store';
@@ -115,6 +118,24 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       item.id === collectionId ? { ...item, viewCount: item.viewCount + 1 } : item
     );
     set({ items });
+    saveToStorage(get());
+  },
+
+  addItem: (item: Collection) => {
+    set({ items: [...get().items, item] });
+    saveToStorage(get());
+  },
+
+  updateItem: (id: string, updates: Partial<Collection>) => {
+    const items = get().items.map((item) =>
+      item.id === id ? { ...item, ...updates } : item
+    );
+    set({ items });
+    saveToStorage(get());
+  },
+
+  deleteItem: (id: string) => {
+    set({ items: get().items.filter((item) => item.id !== id) });
     saveToStorage(get());
   },
 }));

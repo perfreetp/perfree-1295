@@ -8,6 +8,9 @@ interface ActivityStore {
 
   setSelectedDate: (date: string | null) => void;
   setCurrentActivity: (activity: Activity | null) => void;
+  addActivity: (activity: Activity) => void;
+  updateActivity: (id: string, updates: Partial<Activity>) => void;
+  deleteActivity: (id: string) => void;
 }
 
 const STORAGE_KEY = 'museum_activity_store';
@@ -52,5 +55,20 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
 
   setCurrentActivity: (activity: Activity | null) => {
     set({ currentActivity: activity });
+  },
+
+  addActivity: (activity: Activity) => {
+    set({ activities: [...get().activities, activity] });
+  },
+
+  updateActivity: (id: string, updates: Partial<Activity>) => {
+    const activities = get().activities.map((a) =>
+      a.id === id ? { ...a, ...updates } : a
+    );
+    set({ activities });
+  },
+
+  deleteActivity: (id: string) => {
+    set({ activities: get().activities.filter((a) => a.id !== id) });
   },
 }));
