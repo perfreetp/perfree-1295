@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Search, Check, X, MessageCircle, User } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, Check, X, MessageCircle, User, CheckSquare, Square } from "lucide-react";
 import { useCollectionStore } from "@/stores/useCollectionStore";
 
 type ReviewStatus = 'pending' | 'approved' | 'rejected';
@@ -18,35 +18,87 @@ const statusBadge: Record<ReviewStatus, { label: string; className: string }> = 
   rejected: { label: '已拒绝', className: 'bg-red-100 text-red-700' },
 };
 
+const getStatus = (comment: { reviewStatus?: ReviewStatus }): ReviewStatus => comment.reviewStatus ?? 'pending';
+
 export default function MessageReview() {
   const comments = useCollectionStore((s) => s.comments);
   const items = useCollectionStore((s) => s.items);
   const updateCommentReviewStatus = useCollectionStore((s) => s.updateCommentReviewStatus);
+  const batchUpdateCommentReviewStatus = useCollectionStore((s) => s.batchUpdateCommentReviewStatus);
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const getStatus = (comment: typeof comments[0]): ReviewStatus => comment.reviewStatus ?? 'pending';
+  const filtered = useMemo(() => {
+    return comments.filter((c) => {
+      if (filterStatus !== 'all' && getStatus(c) !== filterStatus) return false;
+      if (searchKeyword) {
+        const kw = searchKeyword.toLowerCase();
+        return (
+          c.username.toLowerCase().includes(kw) ||
+          c.content.toLowerCase().includes(kw)
+        );
+      }
+      return true;
+    });
+  }, [comments, filterStatus, searchKeyword]);
+
+  const pendingFiltered = useMemo(() => filtered.filter((c) => getStatus(c) === 'pending'), [filtered]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const someFilteredSelected = filtered.some((c) => selectedIds.has(c.id)) && !allFilteredSelected;
+  const selectedCount = selectedIds.size;
 
   const handleApprove = (id: string) => {
     updateCommentReviewStatus(id, 'approved');
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const handleReject = (id: string) => {
     updateCommentReviewStatus(id, 'rejected');
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
-  const filtered = comments.filter((c) => {
-    if (filterStatus !== 'all' && getStatus(c) !== filterStatus) return false;
-    if (searchKeyword) {
-      const kw = searchKeyword.toLowerCase();
-      return (
-        c.username.toLowerCase().includes(kw) ||
-        c.content.toLowerCase().includes(kw)
-      );
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((c) => c.id)));
     }
-    return true;
-  });
+  };
+
+  const handleBatchApprove = () => {
+    if (selectedIds.size === 0) return;
+    batchUpdateCommentReviewStatus(Array.from(selectedIds), 'approved');
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchReject = () => {
+    if (selectedIds.size === 0) return;
+    batchUpdateCommentReviewStatus(Array.from(selectedIds), 'rejected');
+    setSelectedIds(new Set());
+  };
 
   const getItemTitle = (collectionId: string) => {
     const item = items.find((i) => i.id === collectionId);
@@ -61,7 +113,7 @@ export default function MessageReview() {
           {filterLabels.map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setFilterStatus(key)}
+              onClick={() => { setFilterStatus(key); setSelectedIds(new Set()); }}
               className={`px-4 py-2 border rounded-lg text-sm transition-colors ${
                 filterStatus === key
                   ? 'border-gold bg-gold/10 text-gold font-medium'
@@ -69,23 +121,73 @@ export default function MessageReview() {
               }`}
             >
               {label}
+              {key === 'pending' && pendingFiltered.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-white text-xs">
+                  {pendingFiltered.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
       </div>
 
+      {selectedCount > 0 && (
+        <div className="mb-4 bg-gold/10 border border-gold/30 rounded-xl px-5 py-3 flex items-center justify-between animate-fade-in">
+          <span className="text-sm text-ink font-medium">
+            已选择 {selectedCount} 条留言
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBatchApprove}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            >
+              <Check size={16} />
+              批量通过
+            </button>
+            <button
+              onClick={handleBatchReject}
+              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            >
+              <X size={16} />
+              批量驳回
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-2 text-gray-500 hover:text-ink text-sm transition-colors"
+            >
+              取消选择
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative">
+        <div className="p-4 border-b border-gray-100 flex items-center gap-4">
+          <div className="relative flex-1">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
+              onChange={(e) => { setSearchKeyword(e.target.value); setSelectedIds(new Set()); }}
               placeholder="搜索用户名、内容..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-gold transition-colors"
             />
           </div>
+          {filtered.length > 0 && (
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600 hover:text-ink transition-colors"
+            >
+              {allFilteredSelected ? (
+                <CheckSquare size={18} className="text-gold" />
+              ) : someFilteredSelected ? (
+                <CheckSquare size={18} className="text-gold/50" />
+              ) : (
+                <Square size={18} />
+              )}
+              {allFilteredSelected ? '取消全选' : '全选'}
+            </button>
+          )}
         </div>
 
         {filtered.length === 0 ? (
@@ -95,10 +197,24 @@ export default function MessageReview() {
             {filtered.map((comment) => {
               const status = getStatus(comment);
               const badge = statusBadge[status];
+              const isSelected = selectedIds.has(comment.id);
               return (
-                <div key={comment.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div
+                  key={comment.id}
+                  className={`p-6 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-gold/5' : ''}`}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4">
+                      <button
+                        onClick={() => toggleSelect(comment.id)}
+                        className="mt-1 flex-shrink-0"
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={20} className="text-gold" />
+                        ) : (
+                          <Square size={20} className="text-gray-300 hover:text-gray-400 transition-colors" />
+                        )}
+                      </button>
                       <div className="w-10 h-10 rounded-full bg-gold/10 flex items-center justify-center flex-shrink-0">
                         <User size={20} className="text-gold" />
                       </div>
@@ -109,6 +225,9 @@ export default function MessageReview() {
                             {badge.label}
                           </span>
                           <span className="text-sm text-gray-400">{comment.date}</span>
+                          {comment.type === 'question' && (
+                            <span className="px-2 py-0.5 bg-teal/10 text-teal text-xs rounded">提问</span>
+                          )}
                         </div>
                         <p className="text-gray-700 mb-2">{comment.content}</p>
                         <div className="flex items-center text-sm text-gray-500">

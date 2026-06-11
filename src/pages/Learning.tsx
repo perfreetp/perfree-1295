@@ -5,11 +5,12 @@ import { useUserStore, type Certificate as StoreCertificate } from "@/stores/use
 import QuizView from "@/components/Learning/QuizView";
 import ResultView from "@/components/Learning/ResultView";
 import CertificateModal from "@/components/Learning/CertificateModal";
+import WrongAnswerReview from "@/components/Learning/WrongAnswerReview";
 import LoginModal from "@/components/LoginModal";
 import type { LearningTask } from "@/data/learning";
 import { cn } from "@/lib/utils";
 
-type ViewMode = "list" | "quiz" | "result";
+type ViewMode = "list" | "quiz" | "result" | "wrongReview";
 
 export default function Learning() {
   const {
@@ -33,6 +34,7 @@ export default function Learning() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingCertificateRequest, setPendingCertificateRequest] = useState(false);
   const [pendingViewCertTaskId, setPendingViewCertTaskId] = useState<string | null>(null);
+  const [wrongReviewTaskId, setWrongReviewTaskId] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const completed = Object.values(taskProgress).filter(
@@ -156,28 +158,46 @@ export default function Learning() {
   const renderActionButton = (task: LearningTask) => {
     const progress = getTaskProgress(task.id);
     const hasCertificate = certificates.some((c) => c.taskId === task.id);
-
-    if (progress.status === "completed" && hasCertificate) {
-      return (
-        <button
-          onClick={() => handleViewCertificate(task.id)}
-          className="w-full py-3 bg-gradient-teal text-white rounded-lg hover:shadow-lg hover:shadow-teal/30 transition-all duration-300 font-medium flex items-center justify-center gap-2"
-        >
-          <Eye size={18} />
-          查看证书
-        </button>
-      );
-    }
+    const hasWrongAnswers = task.quizzes.some((_, idx) => {
+      const key = `${task.id}_${idx}`;
+      const answer = userAnswers[key];
+      return answer !== undefined && answer !== task.quizzes[idx].correctIndex;
+    });
 
     if (progress.status === "completed") {
       return (
-        <button
-          onClick={() => handleResetTask(task.id)}
-          className="w-full py-3 bg-ink text-white rounded-lg hover:bg-ink/90 transition-colors font-medium flex items-center justify-center gap-2"
-        >
-          <RotateCcw size={18} />
-          重新学习
-        </button>
+        <div className="space-y-2">
+          {hasCertificate && (
+            <button
+              onClick={() => handleViewCertificate(task.id)}
+              className="w-full py-3 bg-gradient-teal text-white rounded-lg hover:shadow-lg hover:shadow-teal/30 transition-all duration-300 font-medium flex items-center justify-center gap-2"
+            >
+              <Eye size={18} />
+              查看证书
+            </button>
+          )}
+          {hasWrongAnswers && (
+            <button
+              onClick={() => {
+                setWrongReviewTaskId(task.id);
+                setViewMode("wrongReview");
+              }}
+              className="w-full py-3 bg-ink text-white rounded-lg hover:bg-ink/90 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <BookOpen size={18} />
+              查看错题
+            </button>
+          )}
+          {!hasCertificate && !hasWrongAnswers && (
+            <button
+              onClick={() => handleResetTask(task.id)}
+              className="w-full py-3 bg-ink text-white rounded-lg hover:bg-ink/90 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={18} />
+              重新学习
+            </button>
+          )}
+        </div>
       );
     }
 
@@ -213,6 +233,22 @@ export default function Learning() {
     );
   }
 
+  if (viewMode === "wrongReview" && wrongReviewTaskId) {
+    const reviewTask = tasks.find((t) => t.id === wrongReviewTaskId);
+    if (reviewTask) {
+      return (
+        <WrongAnswerReview
+          task={reviewTask}
+          userAnswers={userAnswers}
+          onBack={() => {
+            setWrongReviewTaskId(null);
+            setViewMode("list");
+          }}
+        />
+      );
+    }
+  }
+
   if (viewMode === "result") {
     return (
       <>
@@ -223,6 +259,12 @@ export default function Learning() {
           onNeedLogin={() => {
             setPendingCertificateRequest(true);
             setShowLoginModal(true);
+          }}
+          onReviewWrong={() => {
+            if (currentTask) {
+              setWrongReviewTaskId(currentTask.id);
+              setViewMode("wrongReview");
+            }
           }}
           onRetry={() => currentTask && handleRetryTask(currentTask)}
           onBack={handleBackToList}

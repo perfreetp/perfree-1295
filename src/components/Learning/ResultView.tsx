@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Award, RefreshCw, CheckCircle, XCircle, Medal } from "lucide-react";
+import { ArrowLeft, Award, RefreshCw, CheckCircle, XCircle, Medal, BookOpen } from "lucide-react";
 import { useLearningStore } from "@/stores/useLearningStore";
 import { cn } from "@/lib/utils";
 
@@ -8,11 +8,12 @@ interface ResultViewProps {
   onGetCertificate: () => void;
   onRetry: () => void;
   onBack: () => void;
+  onReviewWrong?: () => void;
   isLoggedIn?: boolean;
   onNeedLogin?: () => void;
 }
 
-export default function ResultView({ score, onGetCertificate, onRetry, onBack, isLoggedIn, onNeedLogin }: ResultViewProps) {
+export default function ResultView({ score, onGetCertificate, onRetry, onBack, onReviewWrong, isLoggedIn, onNeedLogin }: ResultViewProps) {
   const { currentTask } = useLearningStore();
   const [animatedScore, setAnimatedScore] = useState(0);
 
@@ -173,6 +174,15 @@ export default function ResultView({ score, onGetCertificate, onRetry, onBack, i
                 >
                   <RefreshCw size={20} />
                   <span>重新挑战</span>
+                </button>
+              )}
+              {wrongCount > 0 && onReviewWrong && (
+                <button
+                  onClick={onReviewWrong}
+                  className="flex items-center justify-center gap-2 px-8 py-3 bg-ink text-white rounded-xl font-medium hover:bg-ink/90 transition-colors"
+                >
+                  <BookOpen size={20} />
+                  <span>查看错题 ({wrongCount})</span>
                 </button>
               )}
               <button

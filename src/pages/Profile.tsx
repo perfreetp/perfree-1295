@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   User,
@@ -19,6 +19,9 @@ import {
   Sparkles,
   ChevronRight,
   LogIn,
+  Filter,
+  X as XIcon,
+  RotateCcw,
 } from 'lucide-react';
 import LoginModal from '@/components/LoginModal';
 import { useUserStore, type Certificate as StoreCertificate } from '@/stores/useUserStore';
@@ -30,6 +33,7 @@ import { defaultUsers, type User as UserType } from '@/data/users';
 import StatsChart from '@/components/Profile/StatsChart';
 import { cn } from '@/lib/utils';
 import CertificateModal from '@/components/Learning/CertificateModal';
+import WrongAnswerReview from '@/components/Learning/WrongAnswerReview';
 
 type TabKey = 'overview' | 'favorites' | 'registrations' | 'learning' | 'certificates' | 'history';
 
@@ -172,9 +176,55 @@ function FavoritesTab() {
   const toggleFavorite = useUserStore((s) => s.toggleFavorite);
   const navigate = useNavigate();
 
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterDynasty, setFilterDynasty] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'time' | 'name'>('time');
+
+  const STORAGE_KEY = 'museum_profile_fav_filter';
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.filterCategory) setFilterCategory(parsed.filterCategory);
+        if (parsed.filterDynasty) setFilterDynasty(parsed.filterDynasty);
+        if (parsed.sortBy) setSortBy(parsed.sortBy);
+      }
+    } catch (e) { console.error('Failed to load filter from storage', e); }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ filterCategory, filterDynasty, sortBy }));
+  }, [filterCategory, filterDynasty, sortBy]);
+
   const favoriteItems: Collection[] = favorites
     .map((id) => collections.find((c) => c.id === id))
     .filter((c): c is Collection => !!c);
+
+  const categories = useMemo(() => {
+    const cats = new Set(favoriteItems.map((c) => c.category));
+    return Array.from(cats).sort();
+  }, [favoriteItems]);
+
+  const dynasties = useMemo(() => {
+    const ds = new Set(favoriteItems.map((c) => c.dynasty));
+    return Array.from(ds).sort();
+  }, [favoriteItems]);
+
+  const filtered = useMemo(() => {
+    let result = favoriteItems;
+    if (filterCategory !== 'all') {
+      result = result.filter((c) => c.category === filterCategory);
+    }
+    if (filterDynasty !== 'all') {
+      result = result.filter((c) => c.dynasty === filterDynasty);
+    }
+    if (sortBy === 'name') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title, 'zh'));
+    }
+    return result;
+  }, [favoriteItems, filterCategory, filterDynasty, sortBy]);
+
+  const hasActiveFilter = filterCategory !== 'all' || filterDynasty !== 'all';
 
   if (favoriteItems.length === 0) {
     return (
@@ -194,48 +244,99 @@ function FavoritesTab() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-in">
-      {favoriteItems.map((item) => (
-        <div
-          key={item.id}
-          className="group block overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+    <div className="animate-fade-in">
+      <div className="flex flex-wrap items-center gap-3 mb-5 bg-white rounded-xl shadow-sm p-4">
+        <Filter size={16} className="text-gray-400" />
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold transition-colors"
         >
-          <div
-            className="relative aspect-[4/3] overflow-hidden bg-ink/5 cursor-pointer"
-            onClick={() => navigate(`/exhibition/${item.id}`)}
+          <option value="all">全部类别</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          value={filterDynasty}
+          onChange={(e) => setFilterDynasty(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold transition-colors"
+        >
+          <option value="all">全部朝代</option>
+          {dynasties.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'time' | 'name')}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold transition-colors"
+        >
+          <option value="time">按收藏顺序</option>
+          <option value="name">按名称排序</option>
+        </select>
+        {hasActiveFilter && (
+          <button
+            onClick={() => { setFilterCategory('all'); setFilterDynasty('all'); }}
+            className="flex items-center gap-1 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
           >
-            <img
-              src={item.images[0]}
-              alt={item.title}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFavorite(item.id);
-              }}
-              className="absolute top-3 right-3 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center text-red-500 hover:bg-white transition-colors"
+            <XIcon size={14} />
+            清除筛选
+          </button>
+        )}
+        <span className="ml-auto text-sm text-gray-500">共 {filtered.length} 件</span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Filter size={36} className="mx-auto mb-2 opacity-40" />
+          <p>没有符合筛选条件的收藏</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((item) => (
+            <div
+              key={item.id}
+              className="group block overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
             >
-              <Heart size={18} fill="currentColor" />
-            </button>
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <h3 className="mb-2 font-serif text-lg font-semibold text-white line-clamp-1">
-                {item.title}
-              </h3>
-              <div className="flex gap-2">
-                <span className="rounded bg-gold px-2 py-0.5 text-xs font-medium text-white">
-                  {item.dynasty}
-                </span>
-                <span className="rounded bg-teal px-2 py-0.5 text-xs font-medium text-white">
-                  {item.category}
-                </span>
+              <div
+                className="relative aspect-[4/3] overflow-hidden bg-ink/5 cursor-pointer"
+                onClick={() => navigate(`/exhibition/${item.id}`)}
+              >
+                <img
+                  src={item.images[0]}
+                  alt={item.title}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(item.id);
+                  }}
+                  className="absolute top-3 right-3 w-9 h-9 bg-white/90 rounded-full flex items-center justify-center text-red-500 hover:bg-white transition-colors"
+                >
+                  <Heart size={18} fill="currentColor" />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <h3 className="mb-2 font-serif text-lg font-semibold text-white line-clamp-1">
+                    {item.title}
+                  </h3>
+                  <div className="flex gap-2">
+                    <span className="rounded bg-gold px-2 py-0.5 text-xs font-medium text-white">
+                      {item.dynasty}
+                    </span>
+                    <span className="rounded bg-teal px-2 py-0.5 text-xs font-medium text-white">
+                      {item.category}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -244,6 +345,41 @@ function RegistrationsTab() {
   const registrations = useUserStore((s) => s.registrations);
   const toggleRemind = useUserStore((s) => s.toggleRemind);
   const activities = useActivityStore((s) => s.activities);
+
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  const STORAGE_KEY = 'museum_profile_reg_filter';
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.filterStatus) setFilterStatus(parsed.filterStatus);
+      }
+    } catch (e) { console.error('Failed to load filter from storage', e); }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ filterStatus }));
+  }, [filterStatus]);
+
+  const filtered = useMemo(() => {
+    if (filterStatus === 'all') return registrations;
+    return registrations.filter((reg) => {
+      const activity = activities.find((a) => a.id === reg.activityId);
+      return activity?.status === filterStatus;
+    });
+  }, [registrations, activities, filterStatus]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: registrations.length, upcoming: 0, ongoing: 0, ended: 0 };
+    registrations.forEach((reg) => {
+      const activity = activities.find((a) => a.id === reg.activityId);
+      if (activity?.status === 'upcoming') counts.upcoming++;
+      else if (activity?.status === 'ongoing') counts.ongoing++;
+      else counts.ended++;
+    });
+    return counts;
+  }, [registrations, activities]);
 
   if (registrations.length === 0) {
     return (
@@ -263,73 +399,119 @@ function RegistrationsTab() {
   }
 
   return (
-    <div className="space-y-3 animate-fade-in">
-      {registrations.map((reg) => {
-        const activity: Activity | undefined = activities.find((a) => a.id === reg.activityId);
-        return (
-          <div
-            key={reg.id}
-            className="bg-white rounded-xl shadow-md p-5 flex flex-col md:flex-row md:items-center gap-4"
+    <div className="animate-fade-in">
+      <div className="flex flex-wrap items-center gap-3 mb-5 bg-white rounded-xl shadow-sm p-4">
+        <Filter size={16} className="text-gray-400" />
+        {[
+          { key: 'all', label: `全部 (${statusCounts.all})` },
+          { key: 'upcoming', label: `即将开始 (${statusCounts.upcoming})` },
+          { key: 'ongoing', label: `进行中 (${statusCounts.ongoing})` },
+          { key: 'ended', label: `已结束 (${statusCounts.ended})` },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setFilterStatus(key)}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm transition-colors',
+              filterStatus === key
+                ? 'bg-gold/10 text-gold font-medium border border-gold/30'
+                : 'text-gray-600 hover:bg-gray-100 border border-transparent'
+            )}
           >
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h3 className="font-serif font-bold text-ink text-lg">{reg.activityTitle}</h3>
-                <span
-                  className={cn(
-                    'px-2.5 py-0.5 rounded-full text-xs font-medium',
-                    activity?.status === 'upcoming'
-                      ? 'bg-blue-100 text-blue-700'
-                      : activity?.status === 'ongoing'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-500'
-                  )}
-                >
-                  {activity?.status === 'upcoming'
-                    ? '即将开始'
-                    : activity?.status === 'ongoing'
-                    ? '进行中'
-                    : '已结束'}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Calendar size={14} />
-                  报名日期: {reg.registerDate}
-                </span>
-                {activity && (
-                  <>
-                    <span className="flex items-center gap-1">
-                      <Clock size={14} />
-                      活动时间: {activity.date} {activity.time}
-                    </span>
-                    <span>📍 {activity.location}</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-3 md:flex-shrink-0">
-              <button
-                onClick={() => toggleRemind(reg.id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  reg.reminded
-                    ? 'bg-gold/10 text-gold hover:bg-gold/20'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                )}
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <Filter size={36} className="mx-auto mb-2 opacity-40" />
+          <p>没有符合筛选条件的预约</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((reg) => {
+            const activity: Activity | undefined = activities.find((a) => a.id === reg.activityId);
+            return (
+              <div
+                key={reg.id}
+                className="bg-white rounded-xl shadow-md p-5 flex flex-col md:flex-row md:items-center gap-4"
               >
-                {reg.reminded ? <Bell size={16} /> : <BellOff size={16} />}
-                提醒我
-              </button>
-            </div>
-          </div>
-        );
-      })}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-serif font-bold text-ink text-lg">{reg.activityTitle}</h3>
+                    <span
+                      className={cn(
+                        'px-2.5 py-0.5 rounded-full text-xs font-medium',
+                        activity?.status === 'upcoming'
+                          ? 'bg-blue-100 text-blue-700'
+                          : activity?.status === 'ongoing'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      )}
+                    >
+                      {activity?.status === 'upcoming'
+                        ? '即将开始'
+                        : activity?.status === 'ongoing'
+                        ? '进行中'
+                        : '已结束'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar size={14} />
+                      报名日期: {reg.registerDate}
+                    </span>
+                    {activity && (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <Clock size={14} />
+                          活动时间: {activity.date} {activity.time}
+                        </span>
+                        <span>📍 {activity.location}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 md:flex-shrink-0">
+                  <button
+                    onClick={() => toggleRemind(reg.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                      reg.reminded
+                        ? 'bg-gold/10 text-gold hover:bg-gold/20'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    )}
+                  >
+                    {reg.reminded ? <Bell size={16} /> : <BellOff size={16} />}
+                    提醒我
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function LearningTab() {
   const { tasks, taskProgress, userAnswers } = useLearningStore();
+  const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
+
+  if (reviewTaskId) {
+    const reviewTask = tasks.find((t) => t.id === reviewTaskId);
+    if (reviewTask) {
+      return (
+        <WrongAnswerReview
+          task={reviewTask}
+          userAnswers={userAnswers}
+          onBack={() => setReviewTaskId(null)}
+        />
+      );
+    }
+  }
 
   if (tasks.length === 0) {
     return (
@@ -355,6 +537,11 @@ function LearningTab() {
             ? 100
             : progress.score || 0
           : 0;
+        const hasWrongAnswers = task.quizzes.some((_, idx) => {
+          const key = `${task.id}_${idx}`;
+          const answer = userAnswers[key];
+          return answer !== undefined && answer !== task.quizzes[idx].correctIndex;
+        });
 
         return (
           <div key={task.id} className="bg-white rounded-xl shadow-md p-5">
@@ -416,15 +603,35 @@ function LearningTab() {
               </div>
             )}
 
-            {progress?.status !== 'completed' && (
-              <Link
-                to="/learning"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal text-white rounded-lg hover:bg-teal/90 transition-colors text-sm font-medium"
-              >
-                <BookOpen size={16} />
-                {progress?.status === 'in_progress' ? '继续学习' : '开始学习'}
-              </Link>
-            )}
+            <div className="flex items-center gap-3 mt-4">
+              {progress?.status !== 'completed' && (
+                <Link
+                  to="/learning"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal text-white rounded-lg hover:bg-teal/90 transition-colors text-sm font-medium"
+                >
+                  <BookOpen size={16} />
+                  {progress?.status === 'in_progress' ? '继续学习' : '开始学习'}
+                </Link>
+              )}
+              {progress?.status === 'completed' && hasWrongAnswers && (
+                <button
+                  onClick={() => setReviewTaskId(task.id)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white rounded-lg hover:bg-ink/90 transition-colors text-sm font-medium"
+                >
+                  <BookOpen size={16} />
+                  查看错题
+                </button>
+              )}
+              {progress?.status === 'completed' && !hasWrongAnswers && (
+                <Link
+                  to="/learning"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white rounded-lg hover:bg-ink/90 transition-colors text-sm font-medium"
+                >
+                  <RotateCcw size={16} />
+                  重新学习
+                </Link>
+              )}
+            </div>
           </div>
         );
       })}
@@ -438,6 +645,24 @@ function CertificatesTab() {
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [currentCertificate, setCurrentCertificate] = useState<StoreCertificate | null>(null);
   const [currentCertificateNo, setCurrentCertificateNo] = useState('');
+
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'score_desc'>('date_desc');
+  const [filterTask, setFilterTask] = useState<string>('all');
+
+  const STORAGE_KEY = 'museum_profile_cert_filter';
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.sortBy) setSortBy(parsed.sortBy);
+        if (parsed.filterTask) setFilterTask(parsed.filterTask);
+      }
+    } catch (e) { console.error('Failed to load filter from storage', e); }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sortBy, filterTask }));
+  }, [sortBy, filterTask]);
 
   const handlePreview = (cert: StoreCertificate) => {
     setCurrentCertificate(cert);
@@ -632,6 +857,28 @@ function CertificatesTab() {
     document.body.removeChild(link);
   };
 
+  const taskTitles = useMemo(() => {
+    const titles = new Set(certificates.map((c) => c.taskTitle));
+    return Array.from(titles).sort();
+  }, [certificates]);
+
+  const filtered = useMemo(() => {
+    let result = certificates;
+    if (filterTask !== 'all') {
+      result = result.filter((c) => c.taskTitle === filterTask);
+    }
+    if (sortBy === 'date_desc') {
+      result = [...result].sort((a, b) => b.issueDate.localeCompare(a.issueDate));
+    } else if (sortBy === 'date_asc') {
+      result = [...result].sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+    } else if (sortBy === 'score_desc') {
+      result = [...result].sort((a, b) => b.score - a.score);
+    }
+    return result;
+  }, [certificates, filterTask, sortBy]);
+
+  const hasActiveFilter = filterTask !== 'all';
+
   if (certificates.length === 0) {
     return (
       <div className="text-center py-20 animate-fade-in">
@@ -651,8 +898,47 @@ function CertificatesTab() {
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
-        {certificates.map((cert) => (
+      <div className="flex flex-wrap items-center gap-3 mb-5 bg-white rounded-xl shadow-sm p-4 animate-fade-in">
+        <Filter size={16} className="text-gray-400" />
+        <select
+          value={filterTask}
+          onChange={(e) => setFilterTask(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold transition-colors"
+        >
+          <option value="all">全部任务</option>
+          {taskTitles.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'date_desc' | 'date_asc' | 'score_desc')}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gold transition-colors"
+        >
+          <option value="date_desc">最新优先</option>
+          <option value="date_asc">最早优先</option>
+          <option value="score_desc">分数最高</option>
+        </select>
+        {hasActiveFilter && (
+          <button
+            onClick={() => setFilterTask('all')}
+            className="flex items-center gap-1 px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <XIcon size={14} />
+            清除筛选
+          </button>
+        )}
+        <span className="ml-auto text-sm text-gray-500">共 {filtered.length} 张</span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 animate-fade-in">
+          <Filter size={36} className="mx-auto mb-2 opacity-40" />
+          <p>没有符合筛选条件的证书</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
+          {filtered.map((cert) => (
           <div
             key={cert.id}
             className="group relative bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
@@ -694,7 +980,8 @@ function CertificatesTab() {
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       <CertificateModal
         open={showCertificateModal}

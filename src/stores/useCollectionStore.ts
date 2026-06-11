@@ -30,6 +30,7 @@ interface CollectionStore {
   setCurrentItem: (item: Collection | null) => void;
   addComment: (collectionId: string, userId: string, username: string, content: string, rating: number, type?: 'comment' | 'question', reviewStatus?: 'pending' | 'approved' | 'rejected') => void;
   updateCommentReviewStatus: (commentId: string, status: 'pending' | 'approved' | 'rejected') => void;
+  batchUpdateCommentReviewStatus: (commentIds: string[], status: 'pending' | 'approved' | 'rejected') => void;
   incrementViewCount: (collectionId: string) => void;
   addItem: (item: Collection) => void;
   updateItem: (id: string, updates: Partial<Collection>) => void;
@@ -126,6 +127,15 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   updateCommentReviewStatus: (commentId: string, status: 'pending' | 'approved' | 'rejected') => {
     const comments = get().comments.map((c) =>
       c.id === commentId ? { ...c, reviewStatus: status } : c
+    );
+    set({ comments });
+    saveToStorage(get());
+  },
+
+  batchUpdateCommentReviewStatus: (commentIds: string[], status: 'pending' | 'approved' | 'rejected') => {
+    const idSet = new Set(commentIds);
+    const comments = get().comments.map((c) =>
+      idSet.has(c.id) ? { ...c, reviewStatus: status } : c
     );
     set({ comments });
     saveToStorage(get());
