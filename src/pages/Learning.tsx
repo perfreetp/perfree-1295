@@ -32,6 +32,7 @@ export default function Learning() {
   const [currentCertificateNo, setCurrentCertificateNo] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingCertificateRequest, setPendingCertificateRequest] = useState(false);
+  const [pendingViewCertTaskId, setPendingViewCertTaskId] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const completed = Object.values(taskProgress).filter(
@@ -109,6 +110,7 @@ export default function Learning() {
 
   const handleViewCertificate = (taskId: string) => {
     if (!isLoggedIn) {
+      setPendingViewCertTaskId(taskId);
       setPendingCertificateRequest(false);
       setShowLoginModal(true);
       return;
@@ -218,6 +220,10 @@ export default function Learning() {
           score={score}
           isLoggedIn={isLoggedIn}
           onGetCertificate={handleGetCertificate}
+          onNeedLogin={() => {
+            setPendingCertificateRequest(true);
+            setShowLoginModal(true);
+          }}
           onRetry={() => currentTask && handleRetryTask(currentTask)}
           onBack={handleBackToList}
         />
@@ -227,6 +233,34 @@ export default function Learning() {
           certificate={currentCertificate}
           user={user}
           certificateNo={currentCertificateNo}
+        />
+        <LoginModal
+          open={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onLoginSuccess={() => {
+            setShowLoginModal(false);
+            if (pendingCertificateRequest && currentTask) {
+              addCertificate(currentTask.id, currentTask.title, score);
+              setTimeout(() => {
+                const cert = useUserStore.getState().certificates.find((c) => c.taskId === currentTask.id);
+                if (cert) {
+                  setCurrentCertificate(cert);
+                  setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+                  setShowCertificateModal(true);
+                  setPendingCertificateRequest(false);
+                }
+              }, 50);
+            }
+            if (pendingViewCertTaskId) {
+              const cert = useUserStore.getState().certificates.find((c) => c.taskId === pendingViewCertTaskId);
+              if (cert) {
+                setCurrentCertificate(cert);
+                setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+                setShowCertificateModal(true);
+              }
+              setPendingViewCertTaskId(null);
+            }
+          }}
         />
       </>
     );
@@ -356,6 +390,15 @@ export default function Learning() {
                 setPendingCertificateRequest(false);
               }
             }, 50);
+          }
+          if (pendingViewCertTaskId) {
+            const cert = useUserStore.getState().certificates.find((c) => c.taskId === pendingViewCertTaskId);
+            if (cert) {
+              setCurrentCertificate(cert);
+              setCurrentCertificateNo(`MUS-${cert.id.replace(/cert_/g, '').toUpperCase()}`);
+              setShowCertificateModal(true);
+            }
+            setPendingViewCertTaskId(null);
           }
         }}
       />

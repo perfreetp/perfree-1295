@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ChevronLeft,
@@ -98,6 +98,12 @@ const mockComments: CommentItem[] = [
   },
 ];
 
+const userAvatarMap: Record<string, string> = {
+  "u001": defaultUsers[0].avatar,
+  "u002": defaultUsers[1].avatar,
+  "u003": defaultUsers[2].avatar,
+};
+
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>();
   const items = useCollectionStore((s) => s.items);
@@ -120,31 +126,27 @@ export default function CollectionDetail() {
   const [inputValue, setInputValue] = useState("");
   const [viewed, setViewed] = useState(false);
 
-  const userAvatarMap: Record<string, string> = {
-    "u001": defaultUsers[0].avatar,
-    "u002": defaultUsers[1].avatar,
-    "u003": defaultUsers[2].avatar,
-  };
-
-  const mergedComments: CommentItem[] = [
-    ...storeComments
-      .filter((c) => c.collectionId === collection.id)
-      .map((c) => ({
-        id: c.id,
-        userId: c.userId,
-        userName: c.username,
-        userAvatar: userAvatarMap[c.userId] || defaultUsers[1].avatar,
-        content: c.content,
-        type: c.type,
-        createdAt: c.date,
-        likes: 0,
-        liked: false,
-        reviewStatus: c.reviewStatus,
-      })),
-    ...mockComments,
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  const [localComments, setLocalComments] = useState<CommentItem[]>(mergedComments);
+  const mergedComments: CommentItem[] = useMemo(() => {
+    return [
+      ...storeComments
+        .filter((c) => c.collectionId === collection.id)
+        .map((c) => ({
+          id: c.id,
+          userId: c.userId,
+          userName: c.username,
+          userAvatar: userAvatarMap[c.userId] || defaultUsers[1].avatar,
+          content: c.content,
+          type: c.type,
+          createdAt: c.date,
+          likes: 0,
+          liked: false,
+          reviewStatus: c.reviewStatus,
+        })),
+      ...mockComments,
+    ].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [storeComments, collection.id]);
 
   const isFavorite = favorites.includes(collection.id);
 
@@ -156,9 +158,8 @@ export default function CollectionDetail() {
     }
   }, [collection, viewed, incrementViewCount, addBrowseHistory]);
 
-  useEffect(() => {
-    setLocalComments(mergedComments);
-  }, [mergedComments]);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
 
   const nextImage = () => {
     setCurrentImage((prev) => (prev + 1) % collection.images.length);
@@ -210,46 +211,51 @@ export default function CollectionDetail() {
   };
 
   const handleLike = (commentId: string) => {
-    setLocalComments((prev) =>
-      prev.map((c) =>
-        c.id === commentId
-          ? {
-              ...c,
-              liked: !c.liked,
-              likes: c.liked ? c.likes - 1 : c.likes + 1,
-            }
-          : c
-      )
-    );
+    const isLiked = likedIds.has(commentId);
+    const baseCount =
+      likeCounts[commentId] !== undefined
+        ? likeCounts[commentId]
+        : mergedComments.find((c) => c.id === commentId)?.likes || 0;
+
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (isLiked) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+
+    setLikeCounts((prev) => ({
+      ...prev,
+      [commentId]: baseCount + (isLiked ? -1 : 1),
+    }));
   };
 
   const handleSubmit = () => {
     if (!inputValue.trim()) return;
     const content = inputValue.trim();
-    const newComment: CommentItem = {
-      id: `cmt_${Date.now()}`,
-      userId: defaultUsers[1].id,
-      userName: defaultUsers[1].nickname,
-      userAvatar: defaultUsers[1].avatar,
+    addComment(
+      collection.id,
+      defaultUsers[1].id,
+      defaultUsers[1].nickname,
       content,
-      type: activeTab,
-      createdAt: new Date().toLocaleString("zh-CN", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      likes: 0,
-      liked: false,
-      reviewStatus: "pending",
-    };
-    addComment(collection.id, defaultUsers[1].id, defaultUsers[1].nickname, content, 0, activeTab, "pending");
-    setLocalComments((prev) => [newComment, ...prev]);
+      0,
+      activeTab,
+      "pending"
+    );
     setInputValue("");
   };
 
-  const filteredComments = localComments.filter((c) => c.type === activeTab);
+  const filteredComments = mergedComments
+    .filter((c) => c.type === activeTab)
+    .map((c) => ({
+      ...c,
+      liked: likedIds.has(c.id),
+      likes:
+        likeCounts[c.id] !== undefined ? likeCounts[c.id] : c.likes,
+    }));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -441,7 +447,7 @@ export default function CollectionDetail() {
             >
               <div className="flex items-center justify-center gap-2">
                 <MessageCircle size={18} />
-                <span>评论 ({localComments.filter((c) => c.type === "comment").length})</span>
+                <span>评论 ({mergedComments.filter((c) => c.type === "comment").length})</span>
               </div>
               {activeTab === "comment" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
@@ -457,7 +463,7 @@ export default function CollectionDetail() {
             >
               <div className="flex items-center justify-center gap-2">
                 <MessageCircle size={18} />
-                <span>提问 ({localComments.filter((c) => c.type === "question").length})</span>
+                <span>提问 ({mergedComments.filter((c) => c.type === "question").length})</span>
               </div>
               {activeTab === "question" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
