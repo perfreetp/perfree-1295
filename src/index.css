@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream text-ink font-sans;
+    line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .text-shadow-gold {
+    text-shadow: 0 2px 4px rgba(201, 162, 39, 0.3);
+  }
+
+  .text-shadow-ink {
+    text-shadow: 0 2px 4px rgba(26, 26, 46, 0.3);
+  }
+
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, #c9a227 0%, #e6c84e 100%);
+  }
+
+  .bg-gradient-teal {
+    background: linear-gradient(135deg, #2d5a5b 0%, #4a8a8b 100%);
+  }
+
+  .bg-gradient-cream {
+    background: linear-gradient(135deg, #f5f0e6 0%, #e8e0d0 100%);
+  }
+
+  .border-gold {
+    border-color: #c9a227;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
